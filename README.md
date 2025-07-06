@@ -48,5 +48,5 @@ Siga os passos abaixo para preparar seu ambiente.
 ### 1. Obtenha o Código
 Clone este repositório para a sua máquina local:
 ```bash
-git clone [https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git](https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git)
-cd SEU-REPOSITORIO
+git clone https://github.com/Yagami-Murakami/RENOMA_KJR.git
+cd RENOMA_KJR
