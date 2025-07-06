@@ -50,3 +50,47 @@ Clone este repositório para a sua máquina local:
 ```bash
 git clone https://github.com/Yagami-Murakami/RENOMA_KJR.git
 cd RENOMA_KJR
+
+2. Instale as Dependências Python
+O script precisa da biblioteca tqdm para exibir as barras de progresso. Instale-a com o pip:
+
+pip install tqdm
+
+3. Instale o FFmpeg
+
+No Windows
+O jeito mais fácil é usar o gerenciador de pacotes Winget. Abra o Prompt de Comando ou PowerShell e rode:
+
+winget install ffmpeg
+
+No Linux (Debian/Ubuntu)
+Use o gerenciador de pacotes apt. Abra o terminal e rode:
+
+sudo apt update && sudo apt install ffmpeg
+
+No Android (Termux)
+Use o gerenciador de pacotes pkg. Abra o Termux e rode:
+
+pkg update && pkg install ffmpeg python
+
+Como Usar
+Coloque o script na pasta correta: Mova o arquivo .py para dentro da pasta onde estão os arquivos de mídia que você deseja processar.
+
+Abra um terminal nessa pasta:
+
+Windows: Navegue até a pasta pelo Explorador de Arquivos, clique na barra de endereço, digite cmd e pressione Enter.
+
+Linux: Navegue até a pasta pelo seu gerenciador de arquivos, clique com o botão direito e selecione "Abrir no terminal".
+
+Android (Termux): Use o comando cd para navegar, por exemplo: cd storage/downloads/MinhaSerie.
+
+Execute o script:
+
+
+python nome_do_script.py
+(Substitua nome_do_script.py pelo nome real do arquivo no seu repositório).
+
+Siga o menu: O script irá exibir um menu interativo. Basta escolher a opção desejada (renomear, converter vídeo ou áudio) e seguir as instruções na tela.
+
+
+
