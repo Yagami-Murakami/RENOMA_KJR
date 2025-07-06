@@ -87,8 +87,8 @@ Android (Termux): Use o comando cd para navegar, por exemplo: cd storage/downloa
 Execute o script:
 
 
-python nome_do_script.py
-(Substitua nome_do_script.py pelo nome real do arquivo no seu repositório).
+python renoma.py
+(Substitua renoma.py pelo nome real do arquivo no seu repositório).
 
 Siga o menu: O script irá exibir um menu interativo. Basta escolher a opção desejada (renomear, converter vídeo ou áudio) e seguir as instruções na tela.
 
