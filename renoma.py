@@ -37,7 +37,6 @@ FFPROBE = shutil.which("ffprobe") or ("ffprobe.exe" if IS_WINDOWS else "/usr/bin
 VAAPI_DEVICE = "/dev/dri/renderD128"
 WATCHDOG_TIMEOUT = 120
 
-# ... (As funções print_art, clear_screen, get_duration e run_rename_logic não mudaram) ...
 def print_art(current_color_index=0):
     """Função para imprimir a arte ASCII"""
     safe_index = current_color_index % (NUM_BANNER_COLORS if NUM_BANNER_COLORS > 0 else 1)
@@ -82,8 +81,16 @@ def get_duration(file_path):
         print(f"  ⚠️  Não foi possível obter a duração de {file_path}. Usando valor padrão.")
         return 1.0
 
+def natural_sort_key(s):
+    """
+    Chave para a função sorted() que implementa a ordenação natural.
+    Permite que 'ep2.mkv' venha antes de 'ep10.mkv'.
+    """
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(r'([0-9]+)', s)]
+
 def run_rename_logic():
-    """Função de renomear arquivos sequencialmente"""
+    """Função de renomear arquivos sequencialmente com barra de progresso e escolha de ordenação."""
     print()
     print("===========================================")
     print("=== Modo: Renomear Arquivos Sequencialmente ===")
@@ -121,19 +128,27 @@ def run_rename_logic():
             print("   ERRO: Opção inválida. Por favor, digite 1, 2 ou 3.")
     
     print()
+    print(">> Como você deseja ordenar os arquivos antes de renomear?")
+    print("   1) Ordem Alfabética (Padrão: ep1, ep10, ep2)")
+    print("   2) Ordem Natural (Inteligente: ep1, ep2, ep10)")
+
+    sort_choice = ''
+    while sort_choice not in ['1', '2']:
+        sort_choice = input("   Digite a opção de ordenação (1 ou 2): ").strip()
     
-    print("=======================================================")
-    print("=== Resumo da Configuração (Renomear) ===")
-    print(f"Série:           '{nome_serie}'")
-    print(f"Temporada:       {temporada_formatada}")
-    print(f"Tipo de Arquivo: '.{extensao}'")
-    print(f"Pasta Alvo:      '{SCRIPT_DIR}'")
-    print(f"Novo Formato:    {nome_serie} S{temporada_formatada}EXX.{extensao}")
-    print("=======================================================")
     print()
-    
     print(f">> Procurando arquivos *.{extensao} neste diretório...")
-    print(">> Os arquivos serão numerados sequencialmente (E01, E02...) baseado na ordem alfabética atual.")
+
+    file_list = glob.glob(f"*.{extensao}")
+
+    if sort_choice == '2':
+        print(">> Ordenando por Ordem Natural (Inteligente)...")
+        arquivos = sorted(file_list, key=natural_sort_key)
+    else:
+        print(">> Ordenando por Ordem Alfabética...")
+        arquivos = sorted(file_list)
+    
+    print(">> Os arquivos serão numerados sequencialmente (E01, E02...) baseado na ordem escolhida.")
     print("-----------------------------------------------------")
     print(">> IMPORTANTE: Verifique se a ordem de renomeação abaixo está correta ANTES de confirmar!")
     print(">> Pressione ENTER para listar os arquivos e as mudanças propostas, ou CTRL+C para cancelar.")
@@ -144,7 +159,6 @@ def run_rename_logic():
         print("\nOperação cancelada pelo usuário.")
         return
     
-    arquivos = sorted(glob.glob(f"*.{extensao}"))
     script_name = os.path.basename(__file__)
     
     renames = {}
@@ -178,21 +192,19 @@ def run_rename_logic():
     print()
     
     if confirmacao.lower() == 's':
-        print(">> Renomeando arquivos...")
         arquivos_renomeados = 0
         erros = 0
         
-        for arquivo_antigo, novo_nome in renames.items():
+        for arquivo_antigo, novo_nome in tqdm(renames.items(), desc=">> Renomeando", ncols=80, unit="arquivo"):
             try:
                 if not os.path.exists(novo_nome):
                     os.rename(arquivo_antigo, novo_nome)
-                    print(f"  OK: '{arquivo_antigo}' -> '{novo_nome}'")
                     arquivos_renomeados += 1
                 else:
-                    print(f"  ERRO: Arquivo '{novo_nome}' já existe")
+                    tqdm.write(f"  ERRO: Arquivo '{novo_nome}' já existe")
                     erros += 1
             except Exception as e:
-                print(f"  ERRO ao tentar renomear '{arquivo_antigo}' para '{novo_nome}': {e}")
+                tqdm.write(f"  ERRO ao tentar renomear '{arquivo_antigo}' para '{novo_nome}': {e}")
                 erros += 1
         
         print("-----------------------------------------------------")
@@ -236,10 +248,15 @@ def convert_one_video(src: Path, out_ext: str, encoder_info: dict, quality_prese
     elif encoder == 'h264_amf': vcodec_params.extend(["-c:v", "h264_amf", "-qp_i", str(quality_value), "-qp_p", str(quality_value), "-quality", "balanced"])
     elif encoder == 'h264_vaapi': vcodec_params.extend(["-vaapi_device", VAAPI_DEVICE, "-c:v", "h264_vaapi", "-vf", "format=nv12,hwupload", "-qp", str(quality_value)])
     elif encoder == 'h264_mediacodec': vcodec_params.extend(["-c:v", "h264_mediacodec", "-b:v", str(quality_value)])
+    
     cmd = [ FFMPEG, "-nostdin", "-y", "-i", str(src), "-map", "0:v:0?", "-map", "0:a:0?", *vcodec_params, "-c:a", "copy", "-progress", "pipe:1", str(dst) ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, bufsize=1, encoding='utf-8', errors='replace')
+    
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, text=True, bufsize=1, encoding='utf-8', errors='replace')
+    
     dur = get_duration(str(src)); last_update = time.time()
-    bar = tqdm(total=100, desc=f"Convertendo {src.name} ({encoder_info.get('name', encoder)})", ncols=80, unit="%")
+    desc_text = f"Convertendo {src.name[:40]}..." if len(src.name) > 40 else f"Convertendo {src.name}"
+    bar = tqdm(total=100, desc=desc_text, ncols=80, unit="%")
+    
     try:
         for line in proc.stdout:
             if "out_time_ms=" in line:
@@ -345,9 +362,13 @@ def convert_one_audio(src: Path, preset_info: dict) -> bool:
         "-progress", "pipe:1",
         str(dst)
     ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, bufsize=1, encoding='utf-8', errors='replace')
+    
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, text=True, bufsize=1, encoding='utf-8', errors='replace')
+    
     dur = get_duration(str(src)); last_update = time.time()
-    bar = tqdm(total=100, desc=f"Convertendo {src.name}", ncols=80, unit="%")
+    desc_text = f"Convertendo {src.name[:40]}..." if len(src.name) > 40 else f"Convertendo {src.name}"
+    bar = tqdm(total=100, desc=desc_text, ncols=80, unit="%")
+
     try:
         for line in proc.stdout:
             if "out_time_ms=" in line:
@@ -368,7 +389,6 @@ def run_audio_convert_logic():
     print("=== Modo: Converter Arquivos de ÁUDIO ===")
     print("==========================================================")
     
-    # Presets de Qualidade de Áudio
     audio_presets = {
         '1': {'name': 'Lossless (FLAC)', 'codec': 'flac', 'ext': 'flac', 'params': ['-compression_level', '8']},
         '2': {'name': 'Alta Qualidade (MP3, 320kbps CBR)', 'codec': 'libmp3lame', 'ext': 'mp3', 'params': ['-b:a', '320k']},
