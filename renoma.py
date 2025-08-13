@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 #################################################################
 #  Ferramenta interativa para:                                  #
 #    • Renomear episódios de séries                             #
-#    • Converter vídeos em lote (HW-Accel/CPU)                  #
-#    • Converter áudios em lote (com presets de qualidade)      #
+#    • Converter vídeos em lote/individual (HW-Accel/CPU)       #
+#    • Converter áudios em lote/individual (com presets)        #
 #  – Versão com conversor de ÁUDIO integrado                    #
 #################################################################
-
 import os
 import sys
 import re
@@ -31,7 +29,6 @@ NC = '\033[0m'
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
 IS_ANDROID = 'com.termux' in os.environ.get('PREFIX', '')
-
 FFMPEG = shutil.which("ffmpeg") or ("ffmpeg.exe" if IS_WINDOWS else "/usr/bin/ffmpeg")
 FFPROBE = shutil.which("ffprobe") or ("ffprobe.exe" if IS_WINDOWS else "/usr/bin/ffprobe")
 VAAPI_DEVICE = "/dev/dri/renderD128"
@@ -44,16 +41,12 @@ def print_art(current_color_index=0):
     
     print(f"{color}")
     ascii_art = """
-
-
-
 ██████╗░███████╗███╗░░██╗░█████╗░███╗░░░███╗░█████╗░
 ██╔══██╗██╔════╝████╗░██║██╔══██╗████╗░████║██╔══██╗
 ██████╔╝█████╗░░██╔██╗██║██║░░██║██╔████╔██║███████║
 ██╔══██╗██╔══╝░░██║╚████║██║░░██║██║╚██╔╝██║██╔══██║
 ██║░░██║███████╗██║░╚███║╚█████╔╝██║░╚═╝░██║██║░░██║
 ╚═╝░░╚═╝╚══════╝╚═╝░░╚══╝░╚════╝░╚═╝░░░░░╚═╝╚═╝░░╚═╝
-
 ██╗░░██╗░░░░░██╗██████╗░
 ██║░██╔╝░░░░░██║██╔══██╗
 █████═╝░░░░░░██║██████╔╝
@@ -92,9 +85,9 @@ def natural_sort_key(s):
 def run_rename_logic():
     """Função de renomear arquivos sequencialmente com barra de progresso e escolha de ordenação."""
     print()
-    print("===========================================")
-    print("=== Modo: Renomear Arquivos Sequencialmente ===")
-    print("===========================================")
+    print("===========")
+    print("= Modo: Renomear Arquivos Sequencialmente =")
+    print("===========")
     print()
     
     while True:
@@ -131,16 +124,13 @@ def run_rename_logic():
     print(">> Como você deseja ordenar os arquivos antes de renomear?")
     print("   1) Ordem Alfabética (Padrão: ep1, ep10, ep2)")
     print("   2) Ordem Natural (Inteligente: ep1, ep2, ep10)")
-
     sort_choice = ''
     while sort_choice not in ['1', '2']:
         sort_choice = input("   Digite a opção de ordenação (1 ou 2): ").strip()
     
     print()
     print(f">> Procurando arquivos *.{extensao} neste diretório...")
-
     file_list = glob.glob(f"*.{extensao}")
-
     if sort_choice == '2':
         print(">> Ordenando por Ordem Natural (Inteligente)...")
         arquivos = sorted(file_list, key=natural_sort_key)
@@ -271,11 +261,56 @@ def convert_one_video(src: Path, out_ext: str, encoder_info: dict, quality_prese
     if proc.returncode == 0 and dst.exists() and dst.stat().st_size > 1024: print("✅ Conversão de vídeo concluída!"); return True
     print(f"❌ Erro na conversão de vídeo (código: {proc.returncode})."); dst.unlink(missing_ok=True); return False
 
+def select_files_to_convert(input_files, media_type="arquivo"):
+    """Permite ao usuário escolher entre conversão em lote ou individual"""
+    print(f"\nArquivos encontrados ({len(input_files)}):")
+    for i, file in enumerate(input_files, 1):
+        print(f"  {i}) {file.name}")
+    
+    print("\n>> Como deseja proceder com a conversão?")
+    print("   1) Converter TODOS os arquivos (em lote)")
+    print("   2) Converter arquivo ESPECÍFICO")
+    
+    while True:
+        conversion_mode = input("   Digite sua opção (1 ou 2): ").strip()
+        if conversion_mode in ["1", "2"]:
+            break
+        print("   ERRO: Opção inválida. Digite 1 ou 2.")
+    
+    if conversion_mode == "1":
+        # Conversão em lote
+        print("-----------------------------------------------------")
+        confirm_batch = input(f">> Confirma a conversão de {len(input_files)} {media_type}s? (s/N): ").strip()
+        if confirm_batch.lower() != 's':
+            print("Conversão cancelada.")
+            return []
+        return input_files
+    
+    else:
+        # Conversão individual
+        while True:
+            try:
+                file_index = int(input(f"   Digite o número do arquivo para converter (1-{len(input_files)}): ").strip())
+                if 1 <= file_index <= len(input_files):
+                    selected_file = input_files[file_index - 1]
+                    print(f"   -> Arquivo selecionado: '{selected_file.name}'")
+                    confirm_single = input("   Confirma a conversão deste arquivo? (s/N): ").strip()
+                    if confirm_single.lower() == 's':
+                        return [selected_file]
+                    else:
+                        print("   Conversão cancelada.")
+                        return []
+                else:
+                    print("   ERRO: Número inválido.")
+            except ValueError:
+                print("   ERRO: Digite um número válido.")
+
 def run_video_convert_logic():
     platform_name = "Android" if IS_ANDROID else ("Windows" if IS_WINDOWS else "Linux")
-    print("\n==========================================================")
-    print(f"=== Modo: Converter Arquivos de VÍDEO ({platform_name}) ===")
-    print("==========================================================")
+    print("\n==============")
+    print(f"= Modo: Converter Arquivos de VÍDEO ({platform_name}) =")
+    print("==============")
+    
     available_encoders = get_available_encoders()
     if len(available_encoders) > 1:
         print(">> Escolha o Codificador de Vídeo (Placa de Vídeo/CPU):")
@@ -292,40 +327,52 @@ def run_video_convert_logic():
     else:
         chosen_encoder_key = list(available_encoders.keys())[0]; encoder_info = available_encoders[chosen_encoder_key]
         print(f">> Apenas um codificador disponível. Usando: {encoder_info['name']}")
+    
     print("\n>> Escolha o formato de ENTRADA (origem):")
     print("   1) .mkv\n   2) .avi\n   3) .mp4")
     while True:
         input_choice = input("   Opção ENTRADA (1-3): ").strip()
         if input_choice in ["1", "2", "3"]: input_ext = {"1": "mkv", "2": "avi", "3": "mp4"}[input_choice]; break
         else: print("   ERRO: Opção inválida.")
+    
     print(">> Escolha o formato de SAÍDA (destino):")
     print("   1) .mp4\n   2) .mkv")
     while True:
         output_choice = input("   Opção SAÍDA (1-2): ").strip()
         if output_choice in ["1", "2"]: output_ext = {"1": "mp4", "2": "mkv"}[output_choice]; break
         else: print("   ERRO: Opção inválida.")
+    
     if input_ext == output_ext: print("\nERRO: O formato de entrada e saída não podem ser iguais."); return
+    
     print("\n>> Escolha a Qualidade de VÍDEO da Conversão:")
     print("   1) Alta\n   2) Média [Padrão]\n   3) Baixa")
     quality_preset = 2; quality_choice = input("   Digite a opção de Qualidade (1, 2 ou 3): ").strip()
     if quality_choice in ["1", "2", "3"]: quality_preset = int(quality_choice)
     else: print("   Opção inválida, usando qualidade Média (2).")
+    
     print("\n>> Após uma conversão bem-sucedida, como lidar com o arquivo original?")
     print("   1) Deletar AUTOMATICAMENTE\n   2) PERGUNTAR antes de deletar [Padrão]")
     delete_mode = "2"; delete_choice = input("   Digite a opção de deleção (1 ou 2): ").strip()
     if delete_choice == "1": delete_mode = "1"
+    
     if not os.path.isfile(FFMPEG) or not os.path.isfile(FFPROBE): print("ERRO: FFmpeg ou FFprobe não encontrado."); return
-    input_files = sorted(Path(".").glob(f"*.{input_ext}"))
+    
+    all_input_files = sorted(Path(".").glob(f"*.{input_ext}"))
+    # Filtrar o próprio script se estiver na lista
+    script_name = os.path.basename(__file__)
+    input_files = [f for f in all_input_files if f.name != script_name]
+    
     if not input_files: print(f"Nenhum arquivo .{input_ext} encontrado."); return
-    print(f"\nArquivos .{input_ext} encontrados ({len(input_files)}):")
-    for file in input_files: print(f"  {file.name}")
-    print("-----------------------------------------------------")
-    confirm_batch = input(f">> Confirma a conversão de {len(input_files)} arquivos? (s/N): ").strip()
-    if confirm_batch.lower() != 's': print("Conversão cancelada."); return
+    
+    # Escolher arquivos para converter (lote ou individual)
+    files_to_convert = select_files_to_convert(input_files, "vídeo")
+    if not files_to_convert:
+        return
+    
     converted_count, error_count, removed_count, failed_files = 0, 0, 0, []
-    for i, input_file in enumerate(input_files):
-        if input_file.name == os.path.basename(__file__): continue
-        print(f"\n--- [{i+1}/{len(input_files)}] Processando: '{input_file.name}' ---")
+    
+    for i, input_file in enumerate(files_to_convert):
+        print(f"\n--- [{i+1}/{len(files_to_convert)}] Processando: '{input_file.name}' ---")
         if convert_one_video(input_file, output_ext, encoder_info, quality_preset):
             converted_count += 1
             should_remove = False
@@ -339,12 +386,13 @@ def run_video_convert_logic():
             else: print("     -> Original NÃO removido.")
         else: error_count += 1; failed_files.append(input_file.name)
         print("-----------------------------------------------------")
-    print("\n======================================================")
+    
+    print("\n==============")
     print(f">> Processamento de VÍDEO Concluído.")
     print(f"- Arquivos convertidos: {converted_count}\n- Originais removidos: {removed_count}\n- Erros: {error_count}")
     if failed_files:
         print(f"- Arquivos que falharam:"); [print(f"  • {f}") for f in failed_files]
-    print("======================================================")
+    print("==============")
 
 # ─────────────────── Lógica de Conversão de ÁUDIO ───────────────────
 def convert_one_audio(src: Path, preset_info: dict) -> bool:
@@ -353,7 +401,7 @@ def convert_one_audio(src: Path, preset_info: dict) -> bool:
     if src.resolve() == dst.resolve():
         print(f"⚠️  O arquivo de origem e destino são os mesmos ('{src.name}'). Pulando para evitar sobrescrever.")
         return False
-
+    
     cmd = [
         FFMPEG, "-nostdin", "-y", "-i", str(src),
         "-map", "0:a:0?", "-map_metadata", "0",
@@ -368,7 +416,6 @@ def convert_one_audio(src: Path, preset_info: dict) -> bool:
     dur = get_duration(str(src)); last_update = time.time()
     desc_text = f"Convertendo {src.name[:40]}..." if len(src.name) > 40 else f"Convertendo {src.name}"
     bar = tqdm(total=100, desc=desc_text, ncols=80, unit="%")
-
     try:
         for line in proc.stdout:
             if "out_time_ms=" in line:
@@ -385,9 +432,9 @@ def convert_one_audio(src: Path, preset_info: dict) -> bool:
 
 def run_audio_convert_logic():
     """Função principal para o fluxo de conversão de áudio."""
-    print("\n==========================================================")
-    print("=== Modo: Converter Arquivos de ÁUDIO ===")
-    print("==========================================================")
+    print("\n==============")
+    print("= Modo: Converter Arquivos de ÁUDIO =")
+    print("==============")
     
     audio_presets = {
         '1': {'name': 'Lossless (FLAC)', 'codec': 'flac', 'ext': 'flac', 'params': ['-compression_level', '8']},
@@ -414,21 +461,25 @@ def run_audio_convert_logic():
     print("   1) Deletar AUTOMATICAMENTE\n   2) PERGUNTAR antes de deletar [Padrão]")
     delete_mode = "2"; delete_choice = input("   Digite a opção de deleção (1 ou 2): ").strip()
     if delete_choice == "1": delete_mode = "1"
-
+    
     if not os.path.isfile(FFMPEG) or not os.path.isfile(FFPROBE): print("ERRO: FFmpeg ou FFprobe não encontrado."); return
-    input_files = sorted(Path(".").glob(f"*.{input_ext}"))
+    
+    all_input_files = sorted(Path(".").glob(f"*.{input_ext}"))
+    # Filtrar o próprio script se estiver na lista
+    script_name = os.path.basename(__file__)
+    input_files = [f for f in all_input_files if f.name != script_name]
+    
     if not input_files: print(f"\nNenhum arquivo *.{input_ext} encontrado."); return
-
-    print(f"\nArquivos *.{input_ext} encontrados ({len(input_files)}):")
-    for file in input_files: print(f"  {file.name}")
-    print("-----------------------------------------------------")
-    confirm_batch = input(f">> Confirma a conversão de {len(input_files)} arquivos para '{chosen_preset['name']}'? (s/N): ").strip()
-    if confirm_batch.lower() != 's': print("Conversão cancelada."); return
-
+    
+    # Escolher arquivos para converter (lote ou individual)
+    files_to_convert = select_files_to_convert(input_files, "áudio")
+    if not files_to_convert:
+        return
+    
     converted_count, error_count, removed_count, failed_files = 0, 0, 0, []
-    for i, input_file in enumerate(input_files):
-        if input_file.name == os.path.basename(__file__): continue
-        print(f"\n--- [{i+1}/{len(input_files)}] Processando: '{input_file.name}' ---")
+    
+    for i, input_file in enumerate(files_to_convert):
+        print(f"\n--- [{i+1}/{len(files_to_convert)}] Processando: '{input_file.name}' ---")
         if convert_one_audio(input_file, chosen_preset):
             converted_count += 1
             should_remove = False
@@ -442,12 +493,13 @@ def run_audio_convert_logic():
             else: print("     -> Original NÃO removido.")
         else: error_count += 1; failed_files.append(input_file.name)
         print("-----------------------------------------------------")
-    print("\n======================================================")
+    
+    print("\n==============")
     print(f">> Processamento de ÁUDIO Concluído.")
     print(f"- Arquivos convertidos: {converted_count}\n- Originais removidos: {removed_count}\n- Erros: {error_count}")
     if failed_files:
         print(f"- Arquivos que falharam:"); [print(f"  • {f}") for f in failed_files]
-    print("======================================================")
+    print("==============")
 
 # ───────────────────────────── Main ────────────────────────────────
 def main():
@@ -467,9 +519,9 @@ def main():
             clear_screen(); print_art(banner_color_index)
             if NUM_BANNER_COLORS > 0: banner_color_index = (banner_color_index + 1) % NUM_BANNER_COLORS
             
-            print("==========================================================")
-            print(f"=== Menu Principal ({platform_name}) ===")
-            print("==========================================================")
+            print("==============")
+            print(f"= Menu Principal ({platform_name}) =")
+            print("==============")
             print("Escolha a ação desejada:")
             print("  1) Renomear arquivos de séries")
             print("  2) Converter arquivos de VÍDEO")
